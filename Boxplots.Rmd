@@ -1,0 +1,161 @@
+---
+title: "Boxplots Dataset"
+author: "Saurav Singla"
+date: '2022-07-20'
+output: pdf_document
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+library(readxl)
+library(tidyverse)
+library(emmeans)
+library(multcomp)
+```
+
+## Data Import
+
+```{r import}
+setwd('D:\\ANALYSIS\\All in ONe\\Malini')
+malini_control <- read_excel("mkm data-24.8.2022.xlsx")
+head(malini_control)
+
+```
+
+## The Plot
+
+Getteing ANOVA and grouping letters
+
+```{r}
+dt_tble <- data.frame()
+list_aov <- NULL
+name_vec <- names(malini_control)[6:17]
+for (ii in name_vec) {
+        mal_aov <- with(malini_control,
+                        aov(as.formula(paste0(ii,'~Scode+TREATMENT')
+                                       )
+                            )
+                        )
+        list_aov[[ii]]<-summary(mal_aov)
+        
+        mean_tab <- emmeans(mal_aov, c('Scode','TREATMENT'))
+        cldmean <- cld(mean_tab, Letters = letters)
+        dt_tble <- rbind(dt_tble,cldmean)
+}
+
+dt_tble %>% glimpse()
+dt_tble$.group <- gsub(' ', '',dt_tble$.group)
+dt_tble <- dt_tble %>% 
+        mutate(Var=as_factor(rep(name_vec, each=4))) %>% 
+        arrange(Var,Scode,TREATMENT)
+```
+
+The 2 $\times$ 2 boxplot without using ggplot
+
+-   Setting initial values for placing letters at right position
+
+```{r boxplot2x2, fig.show='hide'}
+trait_names <- c(
+        `A` ='Photo(`mu`~mol~m^{-1}~s^{-2})', 
+        `E` ="Transpiration~(mol~m^{-1}~s^{-2})",
+        `Gs`="Stomatal~Conductance(~mol~m^{-1}~s^{-2})",
+        `Ci`="Internal~CO[2]",
+        `WUE`="WUE",                     
+        `leaf_width`="Leaf~Width~(cm)",
+        `CE`="Carboxylation~Efficiency~(A/Ci)",
+        `fv_Per_fm`="PS~II~efficiency",  
+        `TotalNoPaniclesPerPlant`="Total~No.~of~panicles/plant",
+        `TotalNoTillersPerPlant` ="Total~No.~of~tillers/plant",      
+        `GrainYieldPlant` = "Grain~Yield/Plant",
+        `TDW`="TDW" )
+
+Col_vec=c(rgb(0.1,0.1,0.7) , rgb(0.8,0.1,0.3)) 
+nbGroup <- with(malini_control, nlevels(fct_cross(Scode, TREATMENT)))
+
+#### P2 plot ####
+layout(mat = matrix(c(1, 2, 3, 4), 
+                    nrow = 2, 
+                    ncol = 2),
+       heights = c(3.5, 4),    # Heights of the two rows
+       widths = c(1, 1)) 
+par(mar=c(1.5,6,1,1))
+boundaries_A <- with(malini_control, 
+                       boxplot(A~TREATMENT+Scode, ylim=c(5,35) ) )
+boundaries_Ci <- with(malini_control, 
+                      boxplot(Ci~TREATMENT+Scode, ylim=c(180,400)))
+boundaries_E <- with(malini_control, 
+                     boxplot(E~TREATMENT+Scode, ylim=c(0,.025) ) )
+boundaries_Gs <- with(malini_control, 
+                      boxplot(Gs~TREATMENT+Scode, ylim=c(.1,1.4)))
+
+```
+
+-   Final plot
+
+```{r final_plot, fig.height=5}
+layout(mat = matrix(c(1, 2, 3, 4), 
+                    nrow = 2, 
+                    ncol = 2),
+       heights = c(3.5, 4),    # Heights of the two rows
+       widths = c(1, 1)) 
+par(mar=c(1.5,6,1,1))
+with(malini_control, boxplot(A~TREATMENT+Scode, col= Col_vec, ylim=c(5,35),
+                             ylab = parse(text=trait_names['A']), xlab='', las=1,
+                             names= c('','','','')
+)
+)
+text( 
+        x=c(1:nbGroup), 
+        y=boundaries_A$stats[nrow(boundaries_A$stats),]+7, 
+        dt_tble[dt_tble$Var=='A','.group']
+)
+par(mar=c(3.25,6,1,1))
+
+with(malini_control, boxplot(Ci~TREATMENT+Scode, col= Col_vec, ylim=c(180,400),
+                             ylab = parse(text=trait_names['Ci']), xlab='', las=1,
+                             names= c(parse(text=paste0('AT', '(italic(S[1]))')),
+                                      parse(text=paste0('~HT', '(italic(S[1]))')),
+                                      parse(text=paste0('~AT', '(italic(S[2]))')),
+                                      parse(text=paste0('~HT', '(italic(S[2]))'))
+                             )
+)
+)
+text( 
+        x=c(1:nbGroup), 
+        y=boundaries_Ci$stats[nrow(boundaries_Ci$stats),]+30, 
+        dt_tble[dt_tble$Var=='Ci','.group']
+)
+
+par(mar=c(1.5,6,1,1))
+
+with(malini_control, boxplot(E~TREATMENT+Scode, col= Col_vec, ylim=c(0,.025),
+                             ylab = parse(text=trait_names['E']), xlab='', las=1,
+                             names= c('','','','')
+)
+)
+text( 
+        x=c(1:nbGroup), 
+        y=boundaries_E$stats[nrow(boundaries_E$stats),]+.0021, 
+        dt_tble[dt_tble$Var=='E','.group']
+)
+legend("topright", legend = c("AT","HT") , 
+       col = Col_vec, bty = "n", pch=20, 
+       pt.cex = 3, cex = 1, horiz = T, inset = c(0.03, 0.03))
+
+par(mar=c(3.25,6,1,1))
+
+with(malini_control, boxplot(Gs~TREATMENT+Scode, col= Col_vec, ylim=c(.1,1.4),
+                             ylab = parse(text=trait_names['Gs']), xlab='', las=1,
+                             names= c(parse(text=paste0('AT', '(italic(S[1]))')),
+                                      parse(text=paste0('~HT', '(italic(S[1]))')),
+                                      parse(text=paste0('~AT', '(italic(S[2]))')),
+                                      parse(text=paste0('~HT', '(italic(S[2]))'))
+                             )
+)
+)
+text( 
+        x=c(1:nbGroup), 
+        y=boundaries_Gs$stats[nrow(boundaries_Gs$stats),]+.3, 
+        dt_tble[dt_tble$Var=='Gs','.group']
+)
+
+```
